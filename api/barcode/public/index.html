@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta de Produtos por Código de Barras</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div id="app" class="max-w-4xl mx-auto">
+        <!-- App será renderizado aqui -->
+    </div>
+
+    <script>
+        const App = {
+            barcode: '',
+            product: null,
+            loading: false,
+            error: '',
+
+            async searchProduct() {
+                if (!this.barcode || this.barcode.length < 8) {
+                    this.error = 'Digite um código válido (mínimo 8 dígitos)';
+                    this.render();
+                    return;
+                }
+
+                this.loading = true;
+                this.error = '';
+                this.product = null;
+                this.render();
+
+                try {
+                    const response = await fetch(`/api/barcode/${this.barcode}`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Produto não encontrado');
+                    }
+
+                    this.product = await response.json();
+                    this.error = '';
+                } catch (err) {
+                    this.error = err.message || 'Erro ao buscar produto';
+                    this.product = null;
+                }
+
+                this.loading = false;
+                this.render();
+            },
+
+            getFiscalData(ncm) {
+                const fiscal = {
+                    '0401.20.10': { cfop: '5102', cst: '000', icms: '18%', pis: '1.65%', cofins: '7.6%' },
+                    '1006.30.21': { cfop: '5405', cst: '041', icms: '12%', pis: '1.65%', cofins: '7.6%' },
+                    '2202.10.00': { cfop: '5405', cst: '060', icms: '25%', pis: '2.18%', cofins: '10.08%' }
+                };
+                return fiscal[ncm] || { cfop: 'Consultar', cst: 'Consultar', icms: 'Consultar', pis: 'Consultar', cofins: 'Consultar' };
+            },
+
+            render() {
+                const fiscal = this.product?.ncm ? this.getFiscalData(this.product.ncm) : null;
+
+                document.getElementById('app').innerHTML = `
+                    <!-- Header -->
+                    <div class="bg-white rounded-lg shadow-xl p-8 mb-6">
+                        <div class="flex items-center gap-3 mb-6">
+                            <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="16" rx="2" stroke-width="2"/>
+                                <path d="M7 8v8M11 8v8M15 8v8M19 8v8" stroke-width="2"/>
+                            </svg>
+                            <h1 class="text-3xl font-bold text-gray-800">Consulta de Produtos</h1>
+                        </div>
+
+                        <div class="flex gap-3 mb-6">
+                            <input
+                                type="text"
+                                id="barcodeInput"
+                                value="${this.barcode}"
+                                placeholder="Digite o código de barras (EAN-8, EAN-13, DUN-14)"
+                                class="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none text-lg"
+                                maxlength="14"
+                            />
+                            <button
+                                onclick="app.searchProduct()"
+                                ${!this.barcode || this.loading ? 'disabled' : ''}
+                                class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 font-semibold transition-colors"
+                            >
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <circle cx="11" cy="11" r="8" stroke-width="2"/>
+                                    <path d="M21 21l-4.35-4.35" stroke-width="2"/>
+                                </svg>
+                                Buscar
+                            </button>
+                        </div>
+
+                        ${this.error ? `
+                            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                                <p class="text-red-700">${this.error}</p>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    ${this.loading ? `
+                        <div class="bg-white rounded-lg shadow-xl p-8 text-center">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                            <p class="mt-4 text-gray-600">Consultando base de dados...</p>
+                        </div>
+                    ` : ''}
+
+                    ${this.product ? `
+                        <!-- Produto Encontrado -->
+                        <div class="space-y-6">
+                            <!-- Alerta Caixa -->
+                            ${this.product.type === 'box' ? `
+                                <div class="bg-amber-50 border-2 border-amber-400 rounded-lg shadow-lg p-6">
+                                    <h2 class="text-2xl font-bold text-amber-800 mb-4 flex items-center gap-2">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-width="2"/>
+                                        </svg>
+                                        PRODUTO TIPO CAIXA/MASTER
+                                    </h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="bg-white p-4 rounded-lg">
+                                            <p class="text-sm text-gray-600 mb-1">Código da Caixa</p>
+                                            <p class="text-lg font-bold text-gray-800">${this.product.gtin}</p>
+                                        </div>
+                                        <div class="bg-white p-4 rounded-lg">
+                                            <p class="text-sm text-gray-600 mb-1">Código do Item Individual</p>
+                                            <p class="text-lg font-bold text-indigo-600">${this.product.innerBarcode || 'Não disponível'}</p>
+                                            ${this.product.innerBarcode ? `
+                                                <button
+                                                    onclick="app.barcode='${this.product.innerBarcode}'; app.searchProduct()"
+                                                    class="mt-2 text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200"
+                                                >
+                                                    Consultar este produto
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                        ${this.product.quantity ? `
+                                            <div class="bg-white p-4 rounded-lg">
+                                                <p class="text-sm text-gray-600 mb-1">Quantidade por Caixa</p>
+                                                <p class="text-lg font-bold text-gray-800">${this.product.quantity} unidades</p>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Informações Básicas -->
+                            <div class="bg-white rounded-lg shadow-xl p-6">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4">📦 Informações do Produto</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div><p class="text-sm text-gray-600">Descrição</p><p class="text-lg font-semibold text-gray-800">${this.product.description}</p></div>
+                                    <div><p class="text-sm text-gray-600">Código GTIN/EAN</p><p class="text-lg font-semibold text-gray-800">${this.product.gtin}</p></div>
+                                    ${this.product.brand ? `<div><p class="text-sm text-gray-600">Marca</p><p class="text-lg font-semibold text-gray-800">${this.product.brand}</p></div>` : ''}
+                                    ${this.product.avg_price ? `<div><p class="text-sm text-gray-600">Preço Médio</p><p class="text-lg font-semibold text-green-600">R$ ${this.product.avg_price}</p></div>` : ''}
+                                </div>
+                            </div>
+
+                            <!-- Classificação Fiscal -->
+                            ${this.product.ncm ? `
+                                <div class="bg-white rounded-lg shadow-xl p-6">
+                                    <h2 class="text-xl font-bold text-gray-800 mb-4">📋 Classificação Fiscal</h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div><p class="text-sm text-gray-600">NCM</p><p class="text-lg font-semibold text-gray-800">${this.product.ncm}</p></div>
+                                        ${this.product.cest ? `<div><p class="text-sm text-gray-600">CEST</p><p class="text-lg font-semibold text-gray-800">${this.product.cest}</p></div>` : ''}
+                                        ${fiscal ? `<div><p class="text-sm text-gray-600">CFOP</p><p class="text-lg font-semibold text-gray-800">${fiscal.cfop}</p></div>` : ''}
+                                    </div>
+                                </div>
+
+                                ${fiscal ? `
+                                    <div class="bg-white rounded-lg shadow-xl p-6">
+                                        <h2 class="text-xl font-bold text-gray-800 mb-4">💰 Alíquotas Tributárias</h2>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div class="bg-blue-50 p-4 rounded-lg"><p class="text-sm text-gray-600 mb-1">ICMS</p><p class="text-2xl font-bold text-blue-600">${fiscal.icms}</p></div>
+                                            <div class="bg-green-50 p-4 rounded-lg"><p class="text-sm text-gray-600 mb-1">PIS</p><p class="text-2xl font-bold text-green-600">${fiscal.pis}</p></div>
+                                            <div class="bg-purple-50 p-4 rounded-lg"><p class="text-sm text-gray-600 mb-1">COFINS</p><p class="text-2xl font-bold text-purple-600">${fiscal.cofins}</p></div>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            ` : ''}
+                        </div>
+                    ` : ''}
+
+                    <!-- Códigos de Teste -->
+                    <div class="mt-8 bg-white rounded-lg shadow-xl p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-3">💡 Códigos para Teste:</h3>
+                        <div class="space-y-2 text-sm text-gray-600">
+                            <p class="cursor-pointer hover:text-indigo-600" onclick="app.barcode='7891000100103'; app.render()">
+                                <strong>7891000100103</strong> - Coca-Cola 2L
+                            </p>
+                            <p class="cursor-pointer hover:text-indigo-600" onclick="app.barcode='7896002315403'; app.render()">
+                                <strong>7896002315403</strong> - Leite Ninho 400g
+                            </p>
+                            <p class="cursor-pointer hover:text-indigo-600" onclick="app.barcode='7891962053639'; app.render()">
+                                <strong>7891962053639</strong> - Café Pilão 500g
+                            </p>
+                        </div>
+                    </div>
+                `;
+
+                // Re-adicionar event listeners
+                const input = document.getElementById('barcodeInput');
+                if (input) {
+                    input.addEventListener('input', (e) => {
+                        this.barcode = e.target.value.replace(/\D/g, '');
+                        this.render();
+                    });
+                    input.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') this.searchProduct();
+                    });
+                }
+            }
+        };
+
+        // Inicializar app
+        const app = App;
+        app.render();
+    </script>
+</body>
+</html>
